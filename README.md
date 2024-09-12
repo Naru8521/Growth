@@ -4,7 +4,7 @@
 
 アドオンのダウンロードは[コチラ](https://github.com/Naru8521/Growth/releases)
 
-クラフターズコロニーは[コチラ](https://minecraft-mcworld.com/86891/)
+クラフターズコロニーは[コチラ](https://minecraft-mcworld.com/95845/)
 
 # 質問
 [ディスコードサーバー](https://discord.gg/X8WDVkFEDB)で受け付けています
