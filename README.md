@@ -6,8 +6,8 @@
 
 クラフターズコロニーは[コチラ](https://minecraft-mcworld.com/95845/)
 
-# 質問
-[ディスコードサーバー](https://discord.gg/X8WDVkFEDB)で受け付けています
+# ディスコードサーバー
+[マイクラ技術者コミュニティ](https://discord.com/invite/ddtjSc6KJv)
 
 # 使い方
 まずは、アドオンをインポートしてください。
