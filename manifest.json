@@ -2,10 +2,10 @@
     "format_version": 2,
     "header": {
         "description": "小麦などを成長促進させます\n製作:なるる\nYouTube:なるる-Naruru",
-        "name": "成長促進 ver1.0.0",
+        "name": "成長促進 ver1.1.0",
         "uuid": "e4c2eb23-4a98-4a8b-b054-e4d5b8ccda51",
-        "version": [1, 0, 0],
-        "min_engine_version": [1, 21, 0]
+        "version": [1, 1, 0],
+        "min_engine_version": [1, 21, 30]
     },
     "modules": [
         {
@@ -13,7 +13,7 @@
             "type": "script",
             "language": "javascript",
             "uuid": "57c23c4b-d4e6-405d-ac9c-e95e9af3fcaa",
-            "version": [1, 0, 0],
+            "version": [1, 1, 0],
             "entry": "scripts/index.js"
         }
     ],
