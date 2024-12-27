@@ -1,26 +1,31 @@
 import * as UI from "@minecraft/server-ui";
-import { DyProp } from "../libs/dyProp";
+import DyProp from "../libs/dyProp";
 import { world } from "@minecraft/server";
 import { Util } from "../util";
+import { config } from "../config";
+
+const dyProp = new DyProp(world);
 
 export default async function SettingForm(player) {
-    const dy = new DyProp(world);
-    /** @type {Config} */
-    const config = dy.get("config");
+    /** @type {GrowConfig} */
+    let growConfig = dyProp.get("config");
     const form = new UI.ModalFormData();
 
     form.title("設定");
-    form.slider("範囲", 0, 10, 1, config.range);
-    form.slider("確率", 0, 100, 1, config.probability);
+    form.slider("§l種\n§r§f範囲", 0, 10, 1, growConfig.seed.range);
+    form.slider("確率", 0, 100, 1, growConfig.seed.probability);
+    form.toggle("自動植え", growConfig.auto_planting);
+    form.toggle("§c全てリセット", false);
 
     const { formValues, canceled } = await Util.formBusy(player, form);
 
     if (canceled) return;
 
-    const range = formValues[0];
-    const probability = formValues[1];
+    growConfig.seed.range = formValues[0];
+    growConfig.seed.probability = formValues[1];
+    growConfig.auto_planting = formValues[2];
+    
+    if (formValues[6]) growConfig = JSON.parse(JSON.stringify(config));
 
-    config.range = range;
-    config.probability = probability;
-    dy.set("config", config);
+    dyProp.set("config", growConfig);
 }

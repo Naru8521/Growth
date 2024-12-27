@@ -1,57 +1,96 @@
-import { world, system, BlockPermutation } from "@minecraft/server";
-import { DyProp } from "./libs/dyProp";
+import { world, system, BlockPermutation, Dimension, Block } from "@minecraft/server";
 import { commands, commandSetting, commandsPath, config } from "./config";
-import { CommandHandler } from "./libs/commandHandler";
+import CommandHandler from "./libs/commandHandler";
+import playerMoveAfterEvent, { PlayerInputKeys } from "./libs/playerMoveAfterEvent";
+import DyProp from "./libs/dyProp";
 
-const commandHandler = new CommandHandler(commandsPath, commandSetting, commands);
-const dy = new DyProp(world);
+const commandHandler = new CommandHandler(commandsPath, commandSetting, commands, true);
+const dyProp = new DyProp(world);
 
-if (!dy.get("config")) {
-    dy.set("config", config);
-}
+system.run(() => {
+    // configを初期化
+    if (!dyProp.get("config")) dyProp.set("config", config);
+});
 
-system.runInterval(() => {
-    /** @type {Config} */
-    const config = dy.get("config");
+world.beforeEvents.chatSend.subscribe((ev) => {
+    commandHandler.handleCommand(ev);
+});
 
-    for (const player of world.getAllPlayers()) {
-        if (player.isSneaking) {
-            if (player.sneak) continue;
+playerMoveAfterEvent.subscribe(ev => {
+    const { player, keys, firstKeys } = ev;
+    const dimension = player.dimension;
 
-            const { x, y, z } = player.location;
-            const dimension = world.getDimension(player.dimension.id);
+    if (firstKeys.includes(PlayerInputKeys.SHIFT)) {
+        /** @type {GrowConfig} */
+        const growConfig = dyProp.get("config");
+        const location = player.location;
 
-            for (const [dx, dy, dz] of generateCoords(config.range)) {
-                if (Math.random() * 100 < config.probability) {
-                    const blockPos = { x: Math.floor(x) + dx, y: Math.floor(y) + dy, z: Math.floor(z) + dz };
-                    const block = dimension.getBlock(blockPos);
-
-                    if (!block) continue;
-
-                    const states = block.permutation.getAllStates();
-
-                    if (states.growth === undefined || states.growth === 7) continue;
-
-                    const newGrowth = states.growth + 1;
-                    const newPermutation = BlockPermutation.resolve(block.typeId, { growth: newGrowth });
-
-                    block.setPermutation(newPermutation);
-                    dimension.spawnParticle("minecraft:crop_growth_emitter", block.center());
-                }
-            }
-
-            player.sneak = true;
-        } else {
-            player.sneak = false;
-        }
+        growSeed(growConfig, dimension, location);
     }
 });
 
-world.beforeEvents.chatSend.subscribe(async (ev) => {
-    const isCommand = await commandHandler.check(ev);
+world.afterEvents.playerBreakBlock.subscribe(ev => {
+    const { player, block, brokenBlockPermutation } = ev;
 
-    if (isCommand) return;
+    const matchTypes = [
+        { vegetable: "minecraft:wheat", seed: "minecraft:wheat_seeds" },
+        { vegetable: "minecraft:beetroot", seed: "minecraft:beetroot_seeds" },
+        { vegetable: "minecraft:pumpkin_stem", seed: "minecraft:pumpkin_seeds" },
+        { vegetable: "minecraft:melon_stem", seed: "minecraft:melon_seeds" },
+        { vegetable: "minecraft:carrots", seed: "minecraft:carrot" },
+        { vegetable: "minecraft:potatoes", seed: "minecraft:potato" }
+    ];
+    const matchIndex = matchTypes.findIndex(v => v.vegetable === brokenBlockPermutation.type.id);
+    
+    if (matchIndex !== -1) {
+        const container = player.getComponent("inventory").container;
+        const matchType = matchTypes[matchIndex];
+    
+        for (let i = 0; i < container.size; i++) {
+            const item = container.getItem(i);
+    
+            if (item && item.typeId === matchType.seed && item.amount > 0) {
+                const amount = item.amount;
+                const dimension = player.dimension;
+                const newBlock = dimension.getBlock(block.location);
+
+                amount - 1 > 0 ? item.amount -= 1 : item.amount;
+                container.setItem(i, amount - 1 > 0 ? item : null);
+                newBlock.setType(matchType.vegetable);
+                break;
+            }
+        }
+    }    
 });
+
+/**
+ * @param {GrowConfig} growConfig
+ * @param {Dimension} dimension 
+ * @param {import("@minecraft/server").Vector3} location 
+ */
+function growSeed(growConfig, dimension, location) {
+    const seedConfig = growConfig.seed;
+    const { x, y, z } = location;
+
+    for (const [dx, dy, dz] of generateCoords(seedConfig.range)) {
+        if (Math.random() * 100 < seedConfig.probability) {
+            const blockPos = { x: Math.floor(x) + dx, y: Math.floor(y) + dy, z: Math.floor(z) + dz };
+            const block = dimension.getBlock(blockPos);
+
+            if (!block) continue;
+
+            const states = block.permutation.getAllStates();
+
+            if (states.growth === undefined || states.growth === 7) continue;
+
+            const newGrowth = states.growth + 1;
+            const newPermutation = BlockPermutation.resolve(block.typeId, { growth: newGrowth });
+
+            block.setPermutation(newPermutation);
+            dimension.spawnParticle("minecraft:crop_growth_emitter", block.center());
+        }
+    }
+}
 
 /**
  * @param {number} range 

@@ -1,202 +1,219 @@
-import { ChatSendBeforeEvent, Entity, Player, ScriptEventCommandMessageAfterEvent } from "@minecraft/server";
+import { ChatSendAfterEvent, ChatSendBeforeEvent, Player, ScriptEventCommandMessageAfterEvent, world } from "@minecraft/server";
 
 /**
- * @typedef {Object} CommandSetting
- * @property {string} prefix
- * @property {string} id
+ * @typedef {string} CommandsPath 
  */
 
 /**
- * @typedef {SubCommand[]} Commands
+ * @typedef {Object} CommandSetting
+ * @property {string[]} prefixs
+ * @property {string[]} ids
+ */
+
+/**
+ * @typedef {Command[]} Commands
+ */
+
+/**
+ * @typedef {SubCommand} Command 
  */
 
 /**
  * @typedef {Object} SubCommand 
  * @property {string} name
- * @property {string} description
- * @property {SubCommand[]?} subCommands
  * @property {string?} tags
+ * @property {SubCommand[]?} subCommands
  */
 
-/**
- * @typedef {Object} WrapCommand 
- * @property {CommandSetting} commandSetting
- * @property {SubCommand[]} commands 
- */
-
-/**
- * @typedef {Object} CheckReturn
- * @property {boolean} result
- * @property {string?} name
- */
-
-/** @type {Map<string, WrapCommand>} */
-const wrapCommands = new Map();
-
-export class CommandHandler {
+export default class CommandHandler {
     /**
-     * コマンドの設定をします
-     * @param {string} commandsPath - commandsフォルダーへのパス (commandHandler.jsから)
-     * @param {CommandSetting} commandSetting - コマンドの基本設定
-     * @param {Commands} commands - コマンド
+     * @param {CommandsPath} commandsPath 
+     * @param {CommandSetting} commandSetting 
+     * @param {Commands} commands 
+     * @param {boolean} log 
      */
-    constructor(commandsPath, commandSetting, commands) {
-        this.uuid = generateUUIDv4();
+    constructor(commandsPath, commandSetting, commands, log = false) {
         this.commandsPath = commandsPath;
         this.commandSetting = commandSetting;
         this.commands = commands;
+        this.log = log;
 
-        if (!wrapCommands.has(this.uuid)) {
-            wrapCommands.set(this.uuid, {
-                commandSetting: this.commandSetting,
-                commands: this.commands
-            });
+        const strings = getCommandStrings(this.commands);
+        const paths = getCommandPaths(this.commands, this.commandsPath);
 
-            (async () => {
-                for (const command of this.commands) {
-                    const name = command.name;
-    
-                    try {
-                        await import(`${this.commandsPath}/${name}`);
-                    } catch (e) {
-                        console.error(`${name}は${this.commandsPath}内にないため処理されません`);
+        // 存在の確認
+        (async () => {
+            for (let i = 0; i < strings.length; i++) {
+                try {
+                    await import(paths[i]);
+
+                    if (log) {
+                        console.log(`${strings[i]} がコマンドとして登録されました。`);
                     }
+                } catch (e) {
+                    console.error(e);
                 }
-            })();
-        }
+            }
+        })();
     }
 
     /**
-     * メッセージを確認します
-     * @param {ChatSendBeforeEvent | ScriptEventCommandMessageAfterEvent} ev 
-     * @returns {Promise<boolean>}
+     * コマンドかどうか
+     * @param {ChatSendBeforeEvent | ChatSendAfterEvent | ScriptEventCommandMessageAfterEvent} ev 
      */
-    check(ev) {
-        let message;
-        let entity;
+    isCommand(ev) {
+        return getCommandDetails(this.commandsPath, this.commandSetting, this.commands, ev) ? true : false;
+    }
 
-        if (ev instanceof ChatSendBeforeEvent) {
-            message = ev.message;
-            entity = ev.sender;
-        } else if (ev instanceof ScriptEventCommandMessageAfterEvent) {
-            message = `${ev.id} ${ev.message}`;
-            entity = ev.sourceEntity;
-        } else return false;
+    /**
+     * コマンドを実行
+     * @param {ChatSendBeforeEvent | ChatSendAfterEvent | ScriptEventCommandMessageAfterEvent} ev 
+     * @param {boolean} cancel - ChatSendBeforeの時のみ (初期値はtrue)
+     */
+    handleCommand(ev, cancel = true) {
+        const details = getCommandDetails(this.commandsPath, this.commandSetting, this.commands, ev);
 
-        const { result, name } = this.command(message, entity);
+        if (details) {
+            const { path, remaining } = details;
 
-        if (result || name) {
             if (ev instanceof ChatSendBeforeEvent) {
-                ev.cancel = true;
-            }
-
-            if (!result && name && entity instanceof Player) {
-                entity.sendMessage(`§cエラー: コマンドの実行権限がありません。`);
-                return false;
+                ev.cancel = cancel;
             }
 
             (async () => {
                 try {
-                    const module = await import(`${this.commandsPath}/${name}`);
+                    const module = await import(path);
 
-                    module.run(entity);
-                    return true;
-                } catch { }
+                    if (ev instanceof ChatSendBeforeEvent | ChatSendAfterEvent) {
+                        module.run(remaining, { player: ev.sender });
+                    } else {
+                        module.run(remaining, { player: ev.sourceEntity instanceof Player ? ev.sourceEntity : undefined, entity: ev.sourceEntity, initiator: ev.initiator, block: ev.sourceBlock });
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
             })();
-        }
-
-        return false;
-    }
-
-    /**
-     * @param {string} message 
-     * @param {Entity?} entity 
-     * @returns {CheckReturn}
-     */
-    command(message, entity) {
-        const { prefix, id } = this.commandSetting;
-
-        if (message.startsWith(prefix) || message.startsWith(id)) {
-            message = message.replace(prefix, "").trim();
-            message = message.replace(id, "").trim();
-        } else {
-            return { result: false, name: null };
-        }
-
-        const splitMessage = message.split(" ");
-        const { result, name } = this.match(this.commands, splitMessage, entity);
-
-        if (result && name) {
-            return { result: true, name: splitMessage[0] };
-        } else if (!result && name) {
-            return { result: false, name: splitMessage[0] }
-        }
-
-        return { result: false, name: null };
-    }
-
-    /**
-     * 
-     * @param {SubCommand[]} commands 
-     * @param {string[]} splitMessage 
-     * @param {Entity?} entity 
-     * @returns {CheckReturn}
-     */
-    match(commands, splitMessage, entity) {
-        if (splitMessage.length === 0) {
-            return {
-                result: true,
-                name: splitMessage[0]
-            }
-        }
-
-        const currentCommand = splitMessage[0];
-        const remainingMessage = splitMessage.slice(1);
-
-        for (const command of commands) {
-            const hasRequiredTags = entity
-                ? command.tags
-                    ? command.tags.length === 0 || command.tags.some(tag => entity.getTags().includes(tag))
-                    : true
-                : true;
-
-            if (command.name === currentCommand) {
-                if (hasRequiredTags) {
-                    if (command.subCommands) {
-                        return {
-                            result: this.match(command.subCommands, remainingMessage, entity),
-                            name: splitMessage[0]
-                        }
-                    }
-
-                    return {
-                        result: true,
-                        name: splitMessage[0]
-                    }
-                }
-
-                return {
-                    result: false,
-                    name: splitMessage[0]
-                }
-            }
-        }
-
-        return {
-            result: false,
-            name: null
         }
     }
 }
 
 /**
- * UUIDv4を生成します
- * @returns {string} - UUID
+ * @param {CommandsPath} commandsPath
+ * @param {CommandSetting} commandSetting 
+ * @param {Commands} commands 
+ * @param {ChatSendBeforeEvent | ChatSendAfterEvent | ScriptEventCommandMessageAfterEvent} ev 
+ * @returns {{ path: string, remaining: string[] } | undefined}
  */
-function generateUUIDv4() {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-        const r = Math.random() * 16 | 0;
-        const v = c === "x" ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
+function getCommandDetails(commandsPath, commandSetting, commands, ev) {
+    const commandPaths = getCommandPaths(commands, commandsPath);
+    const commandStrings = getCommandStrings(commands);
+
+    if (ev instanceof ChatSendBeforeEvent || ev instanceof ChatSendAfterEvent) {
+        let { message, sender } = ev;
+
+        if (!commandSetting.prefixs || commandSetting.prefixs.length === 0) return undefined;
+
+        for (const prefix of commandSetting.prefixs) {
+            if (message.startsWith(prefix)) {
+                message = message.replace(prefix, "").trim();
+
+                const parts = message.split(" ");
+
+                for (let i = 0; i < commandPaths.length; i++) {
+                    const commandParts = commandStrings[i].split(" ");
+
+                    if (parts.length >= commandParts.length && parts.slice(0, commandParts.length).every((part, index) => part === commandParts[index])) {
+                        const remaining = parts.slice(commandParts.length);
+
+                        if (Array.isArray(commands[i].tags) && commands[i].tags.length > 0) {
+                            const commandTags = commands[i].tags;
+
+                            if (!sender.getTags().some(tag => commandTags.includes(tag))) {
+                                return undefined;
+                            }
+                        }
+
+                        if (commands[i].subCommands && commands[i].subCommands.length > 0) {
+                            for (const subCommand of commands[i].subCommands) {
+                                const subCommandTags = subCommand.tags || [];
+
+                                if (subCommandTags.length > 0 && !sender.getTags().some(tag => subCommandTags.includes(tag))) {
+                                    continue;
+                                }
+
+                                const remainingSubCommand = parts.slice(commandParts.length);
+                                return { path: commandPaths[i], remaining: remainingSubCommand };
+                            }
+                        }
+
+                        return { path: commandPaths[i], remaining };
+                    }
+                }
+            }
+        }
+    } else {
+        const { id, message } = ev;
+
+        if (!commandSetting.ids || commandSetting.ids.length === 0) return undefined;
+
+        for (const ida of commandSetting.ids) {
+            if (id === ida) {
+                const parts = message.split(" ");
+
+                for (let i = 0; i < commandPaths.length; i++) {
+                    const commandParts = commandStrings[i].split(" ");
+
+                    if (parts.length >= commandParts.length && parts.slice(0, commandParts.length).every((part, index) => part === commandParts[index])) {
+                        const remaining = parts.slice(commandParts.length);
+
+                        return { path: commandPaths[i], remaining };
+                    }
+                }
+            }
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * @param {Commands} commands 
+ * @param {string} currentPath 
+ * @returns {string[]}
+ */
+function getCommandPaths(commands, currentPath = "") {
+    const paths = [];
+
+    for (const command of commands) {
+        const newPath = currentPath ? `${currentPath}/${command.name}` : command.name;
+
+        if (!command.subCommands || command.subCommands.length === 0) {
+            paths.push(newPath);
+        } else {
+            paths.push(...getCommandPaths(command.subCommands, newPath));
+        }
+    }
+
+    return paths;
+}
+
+/**
+ * @param {Commands} commands 
+ * @param {string} currentString 
+ * @returns {string[]}
+ */
+function getCommandStrings(commands, currentString = "") {
+    const strings = [];
+
+    for (const command of commands) {
+        const newString = currentString ? `${currentString} ${command.name}` : command.name;
+
+        if (!command.subCommands || command.subCommands.length === 0) {
+            strings.push(newString);
+        } else {
+            strings.push(...getCommandStrings(command.subCommands, newString));
+        }
+    }
+
+    return strings;
 }

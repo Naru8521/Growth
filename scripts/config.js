@@ -1,7 +1,10 @@
-/** @type {Config} */
+/** @type {GrowConfig} */
 export const config = {
-    range: 3,
-    probability: 33
+    seed: {
+        range: 3,
+        probability: 30
+    },
+    auto_planting: true
 }
 
 /** @type {string} */
@@ -9,15 +12,14 @@ export const commandsPath = "../commands";
 
 /** @type {import("./libs/commandHandler").CommandSetting} */
 export const commandSetting = {
-    prefix: "grow",
-    id: ""
+    prefixs: ["grow"],
+    ids: ["g:w"]
 };
 
 /** @type {import("./libs/commandHandler").Commands} */
 export const commands = [
     {
         name: "setting",
-        description: "成長範囲などの設定をします",
         tags: ["op"]
     }
 ];

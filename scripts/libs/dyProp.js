@@ -1,6 +1,6 @@
 import { World, Entity, Player, ItemStack } from "@minecraft/server";
 
-export class DyProp {
+export default class DyProp {
     /**
      * @param {World | Entity | Player | ItemStack} target - 操作対象のオブジェクト
      */
