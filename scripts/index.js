@@ -1,31 +1,28 @@
-import { world, system, BlockPermutation, Dimension, Block } from "@minecraft/server";
-import { commands, commandSetting, commandsPath, config } from "./config";
-import CommandHandler from "./libs/commandHandler";
-import playerMoveAfterEvent, { PlayerInputKeys } from "./libs/playerMoveAfterEvent";
-import DyProp from "./libs/dyProp";
+import { BlockPermutation, system, world } from "@minecraft/server";
+import { loadSettingCommand } from "./commands/setting";
+import DyProp from "./modules/DyProp";
+import playerMoveAfterEvent, { PlayerInputKey } from "./events/playerMoveAfterEvent";
+import { config } from "./config";
 
-const commandHandler = new CommandHandler(commandsPath, commandSetting, commands, true);
 const dyProp = new DyProp(world);
 
 system.run(() => {
-    // configを初期化
-    if (!dyProp.get("config")) dyProp.set("config", config);
-});
+    // コマンドを初期化
+    loadSettingCommand();
 
-world.beforeEvents.chatSend.subscribe((ev) => {
-    commandHandler.handleCommand(ev);
+    // 設定を初期化
+    if (!dyProp.get("setting")) dyProp.set("setting", config.setting);
 });
 
 playerMoveAfterEvent.subscribe(ev => {
-    const { player, keys, firstKeys } = ev;
+    const { player, firstKeys } = ev;
     const dimension = player.dimension;
 
-    if (firstKeys.includes(PlayerInputKeys.SHIFT)) {
-        /** @type {GrowConfig} */
-        const growConfig = dyProp.get("config");
+    if (firstKeys.includes(PlayerInputKey.SHIFT)) {
+        const setting = dyProp.get("setting");
         const location = player.location;
 
-        growSeed(growConfig, dimension, location);
+        growSeed(setting, dimension, location);
     }
 });
 
@@ -64,12 +61,12 @@ world.afterEvents.playerBreakBlock.subscribe(ev => {
 });
 
 /**
- * @param {GrowConfig} growConfig
+ * @param {GrowConfig} setting
  * @param {Dimension} dimension 
  * @param {import("@minecraft/server").Vector3} location 
  */
-function growSeed(growConfig, dimension, location) {
-    const seedConfig = growConfig.seed;
+function growSeed(setting, dimension, location) {
+    const seedConfig = setting.seed;
     const { x, y, z } = location;
 
     for (const [dx, dy, dz] of generateCoords(seedConfig.range)) {

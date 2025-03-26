@@ -1,12 +1,28 @@
+import { Player } from "@minecraft/server";
+import { config } from "../config";
 import SettingForm from "../forms/setting";
-import { Block, Entity, Player } from "@minecraft/server";
+import commandManager from "../modules/CommandManager";
 
-/**
- * @param {string[]} args 
- * @param {{ player: Player?, entity: Entity?, initiator: Entity?, block: Block? }} ev 
- */
-export async function run(args, ev) {
-    const { player, entity, initiator, block } = ev;
+export function loadSettingCommand() {
+    const settingCommand = commandManager.register({
+        prefixes: config.commands.prefixes,
+        ids: config.commands.ids,
+        tags: ["op"],
+        name: "setting",
+        description: "設定を開きます。"
+    });
 
-    await SettingForm(player);
+    console.log("load setting command.");
+
+    settingCommand.onCommand((args, player) => {
+        SettingForm(player);
+    });
+
+    settingCommand.onScriptCommand((args, initiator, sourceEntity, sourceBlock) => {
+        if (initiator instanceof Player) {
+            SettingForm(initiator);
+        } else if (sourceEntity instanceof Player) {
+            SettingForm(sourceEntity);
+        }
+    });
 }

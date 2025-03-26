@@ -2,17 +2,7 @@ import { ButtonState, Dimension, InputButton, InputInfo, InputMode, Player, syst
 
 /**
  * @callback PlayerMoveAfterEventCallback
- * @param {PlayerMoveAfterEvent} event - イベントオブジェクト
- */
-
-/**
- * @typedef {Object} PlayerInputKeys 
- * @property {"W"} W
- * @property {"A"} A 
- * @property {"S"} S 
- * @property {"D"} D 
- * @property {"SPACE"} SPACE
- * @property {"SHIFT"} SHIFT 
+ * @param {PlayerMoveAfterEvent} event - event object
  */
 
 /**
@@ -21,17 +11,16 @@ import { ButtonState, Dimension, InputButton, InputInfo, InputMode, Player, syst
 
 /**
  * @typedef {Object} PlayerMoveAfterEvent
- * @property {Player} player - イベントを起こしたプレイヤー
- * @property {PlayerInputKey[]} keys - 押されているキー
- * @property {InputMode} device - イベントを起こしたプレイヤーのデバイス
- * @property {PlayerInputKey[]} firstKeys - 最初に実行されたキー
+ * @property {Player} player - The player who caused the event
+ * @property {PlayerInputKey[]} keys - Key being pressed
+ * @property {InputMode} device - Device of the player who caused the event
+ * @property {PlayerInputKey[]} firstKeys - First executed key
  */
 
 const callbacks = new Map();
 const playerBeforePressKeys = new Map();
 
-/** @type {Readonly<PlayerInputKeys>} */
-export const PlayerInputKeys = Object.freeze({
+export const PlayerInputKey = Object.freeze({
     W: "W",
     A: "A",
     S: "S",
